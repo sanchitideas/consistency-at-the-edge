@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+// The service definition.
+service MultipleValues {
+ 	rpc  getValuesForKeys (stream ValueRequest) returns (stream ValueResponse) {}
+ 	rpc  setValuesForKeys (stream SetRequest) returns (stream SetResponse) {}
+ 	rpc setValue (SetRequest) returns (SetResponse) {}
+ 	rpc getValue (ValueRequest) returns (ValueResponse) {}
+ 	rpc acceptCache (stream SetRequest) returns (SetResponse) {}
+}
+
+// Request message containing the key for which a value is requested
+message ValueRequest {
+ 	string key = 1;
+}
+
+// Response message containing a value
+message ValueResponse {
+	// async RPCs are supported
+ 	string key = 1;
+ 	string value = 2;
+}
+
+// Request message containing a value to be set
+message SetRequest {
+ 	string key = 1;
+ 	string value = 2;
+}
+
+// Response of set request
+message SetResponse {
+	// async RPCs are supported
+	string key = 1;
+	bool success = 2;
+}
