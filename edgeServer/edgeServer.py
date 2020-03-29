@@ -7,6 +7,10 @@ import grpc
 
 import kvstore_pb2
 import kvstore_pb2_grpc
+
+import centralserver_pb2
+import centralserver_pb2_grpc
+
 import collections
 
 
@@ -43,6 +47,19 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
         self.cache = LRUCache(100) #key - tuple(client specific key, clientID), Value - List (value, timestamp)
         self.serverID = serverID
         self.activeSessionIDs = set()
+        self.centralServerConn = self.connectCentralServer()
+
+    
+    def connectCentralServer(self):
+        channel = grpc.insecure_channel('localhost:50050')         
+        return centralserver_pb2_grpc.CentralServerStub(channel)
+    
+    def writeToCentralServer(self, key, value):
+        return self.centralServerConn.setValue(centralserver_pb2.CentralServerSetRequest(key=key, value = value))
+    
+    def readFromCentralServer(self, key):
+        return self.centralServerConn.getValue(centralserver_pb2.CentralServerValueRequest(key=key))
+        
 
     def bindToServer(self, request, context): #to establish the session for the first time        
         sessionID = request.clientID + "-" + str(time.time())
@@ -53,10 +70,15 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     def setValue(self, request, context):
         if(request.token.sessionID not in self.activeSessionIDs):
             #transfer from neighibouring edge node
-            pass          
-        self.cache.set((request.key, request.token.clientID), [request.value, time.time()])
-        #request.token.sessionID = "server"
-        return kvstore_pb2.SetResponse(key=request.key, success=True, token = request.token)
+            pass
+        centralServerResponse = self.writeToCentralServer(request.key, request.value)
+        if(centralServerResponse.success):
+            currentTime = time.time()          
+            self.cache.set((request.key, request.token.clientID), [request.value, currentTime])
+            #request.token.sessionID = "server"
+            return kvstore_pb2.SetResponse(key=request.key, success=True, token = request.token)
+        else:
+            return kvstore_pb2.SetResponse(key=request.key, success=False, token = request.token)
 
     def getValue(self, request, context):
         if(request.token.sessionID not in self.activeSessionIDs):
@@ -64,10 +86,18 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
             pass  
         toReturn = self.cache.get((request.key, request.token.clientID))
         if(not toReturn):
-            #fetch from central server, 
-            pass
+            #fetch from central server
+            centralServerResponse = self.readFromCentralServer(request.key)
+            currentTime = time.time()
+            if(centralServerResponse.value is not None):       
+                self.cache.set((request.key, request.token.clientID), [centralServerResponse.value, currentTime])
+                toReturn = self.cache.get((request.key, request.token.clientID))
+            else:
+                return kvstore_pb2.ValueResponse(key=request.key, value = None, timeStamp = None, token = request.token)
+
         return kvstore_pb2.ValueResponse(key=request.key, value = toReturn[0], timeStamp = toReturn[1], token = request.token)
 
+    
     # def getValuesForKeys(self, request_iterator, context):
     #     for request in request_iterator:
     #         yield kvstore_pb2.ValueResponse(key=request.key, value="sample_value")       

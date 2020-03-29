@@ -2,29 +2,35 @@ syntax = "proto3";
 
 // The service definition.
 service CentralServer {
- 	rpc  getValuesForKeys (stream ValueRequest) returns (stream ValueResponse) {}
- 	rpc  setValuesForKeys (stream SetRequest) returns (stream SetResponse) {}
- 	rpc setValue (SetRequest) returns (SetResponse) {}
- 	rpc getValue (ValueRequest) returns (ValueResponse) {}
+ 	rpc  getValuesForKeys (stream CentralServerValueRequest) returns (stream CentralServerValueResponse) {}
+ 	rpc  setValuesForKeys (stream CentralServerSetRequest) returns (stream CentralServerSetResponse ) {}
+ 	rpc setValue (CentralServerSetRequest) returns (CentralServerSetResponse ) {}
+ 	rpc getValue (CentralServerValueRequest) returns (CentralServerValueResponse) {}
 }
 
+
 // Request message containing the key for which a value is requested
-message ValueRequest {
+message CentralServerValueRequest {
  	string key = 1;
 }
 
 // Response message containing a value
-message ValueResponse {
- 	string value = 1;
+message CentralServerValueResponse {
+	// async RPCs are supported
+ 	string key = 1;
+ 	string value = 2;
 }
 
+
 // Request message containing a value to be set
-message SetRequest {
+message CentralServerSetRequest {
  	string key = 1;
  	string value = 2;
 }
 
 // Response of set request
-message SetResponse {
-	bool success = 1;
+message CentralServerSetResponse {
+	// async RPCs are supported
+	string key = 1;
+	bool success = 2;
 }
