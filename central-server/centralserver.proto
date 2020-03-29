@@ -26,5 +26,5 @@ message SetRequest {
 
 // Response of set request
 message SetResponse {
-	bool success = 2;
+	bool success = 1;
 }
