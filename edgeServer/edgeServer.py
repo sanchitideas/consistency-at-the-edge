@@ -11,6 +11,9 @@ import kvstore_pb2_grpc
 import centralserver_pb2
 import centralserver_pb2_grpc
 
+import yaml
+import sys
+
 import collections
 
 
@@ -19,25 +22,25 @@ class LRUCache:
     # @param capacity, an integer
     def __init__(self, capacity): #capacity- number of rows allowed
         self.capacity = capacity
-        self.forwardTable = collections.OrderedDict()
+        self.localCache = collections.OrderedDict()
 
     # @return an integer
     def get(self, key):
-        if not key in self.forwardTable:
+        if not key in self.localCache:
             return None
-        value = self.forwardTable.pop(key)
-        self.forwardTable[key] = value
+        value = self.localCache.pop(key)
+        self.localCache[key] = value
         return value
 
     # @param key, an integer
     # @param value, an integer
     # @return nothing
     def set(self, key, value):
-        if key in self.forwardTable:
-            self.forwardTable.pop(key)
-        elif len(self.forwardTable) == self.capacity:
-            self.forwardTable.popitem(last=False)
-        self.forwardTable[key] = value
+        if key in self.localCache:
+            self.localCache.pop(key)
+        elif len(self.localCache) == self.capacity:
+            self.localCache.popitem(last=False)
+        self.localCache[key] = value
 
 
 class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
@@ -46,12 +49,14 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     def __init__(self, serverID):
         self.cache = LRUCache(100) #key - tuple(client specific key, clientID), Value - List (value, timestamp)
         self.serverID = serverID
-        self.activeSessionIDs = set()
-        self.centralServerConn = self.connectCentralServer()
+        self.activeSessionIDs = set()    
+        with open("neighbouringEdgeServer.yaml") as file:
+            self.neighboringEdgeServers = yaml.safe_load(file)
+        self.centralServerConn = self.connectCentralServer()  
 
     
     def connectCentralServer(self):
-        channel = grpc.insecure_channel('localhost:50050')         
+        channel = grpc.insecure_channel(self.neighboringEdgeServers["centralServer"])         
         return centralserver_pb2_grpc.CentralServerStub(channel)
     
     def writeToCentralServer(self, key, value):
@@ -59,7 +64,32 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     
     def readFromCentralServer(self, key):
         return self.centralServerConn.getValue(centralserver_pb2.CentralServerValueRequest(key=key))
-        
+
+    def fetchFromNeighbour(self, neighbourID, clientID, sessionID):
+        with grpc.insecure_channel(self.neighboringEdgeServers[neighbourID]) as channel:
+            stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
+            response = stub.cacheMigration(kvstore_pb2.FetchRequest(clientID = clientID, sessionID = sessionID))
+            for entry in response:
+                print(entry.key, " ", entry.clientID, " ", entry.value, " ", entry.timeStamp)
+        self.activeSessionIDs.add(sessionID)
+
+    def cacheMigration(self, request, context):
+        if(request.sessionID not in self.activeSessionIDs):
+            #notify the destination server that this session has been invalidated
+            pass    
+        clientID = request.clientID
+        toRemoveKeys = []
+        for key, value in self.cache.localCache.items():
+            try:
+                if(key[1] == clientID):
+                    toRemoveKeys.append(key)
+                    yield kvstore_pb2.CacheEntry(key = key[0], clientID = key[1], value = value[0], timeStamp = value[1])
+            except Exception as ex:
+                print(ex)
+                print("could not migrate entry ", key, ":", value)
+        for key in toRemoveKeys:
+            del self.cache.localCache[key]
+        self.activeSessionIDs.remove(request.sessionID)
 
     def bindToServer(self, request, context): #to establish the session for the first time        
         sessionID = request.clientID + "-" + str(time.time())
@@ -70,7 +100,8 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     def setValue(self, request, context):
         if(request.token.sessionID not in self.activeSessionIDs):
             #transfer from neighibouring edge node
-            pass
+            self.fetchFromNeighbour(request.token.serverID, request.token.clientID, request.token.sessionID)
+            
         centralServerResponse = self.writeToCentralServer(request.key, request.value)
         if(centralServerResponse.success):
             currentTime = time.time()          
@@ -83,7 +114,7 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     def getValue(self, request, context):
         if(request.token.sessionID not in self.activeSessionIDs):
             #transfer from neighibouring edge node
-            pass  
+            self.fetchFromNeighbour(request.token.serverID, request.token.clientID, request.token.sessionID)  
         toReturn = self.cache.get((request.key, request.token.clientID))
         if(not toReturn):
             #fetch from central server
@@ -112,16 +143,22 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
         return kvstore_pb2.SetResponse(key="sample_key", success=True)
 
 
-def serve():
+def serve(serverID):
+    with open("neighbouringEdgeServer.yaml") as file:
+        neighboringEdgeServers = yaml.safe_load(file)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     kvstore_pb2_grpc.add_MultipleValuesServicer_to_server(
-        KVStoreServicer("server1"), server)
-    print('Starting server. Listening on port 50051.')
-    server.add_insecure_port('[::]:50051')
+        KVStoreServicer(serverID), server)    
+    connectionInfo = neighboringEdgeServers[serverID]
+    print('Starting server. Listening on port: ', connectionInfo)
+    server.add_insecure_port(connectionInfo)
     server.start()
     server.wait_for_termination()
 
 
 if __name__ == '__main__':
+    if(len(sys.argv) != 2):
+        print("Usage: python3 edgeServer.py <serverID as defined in yaml>")
+        exit(1)
     logging.basicConfig()
-    serve()
+    serve(sys.argv[1])

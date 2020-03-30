@@ -8,6 +8,7 @@ service MultipleValues {
  	rpc getValue (ValueRequest) returns (ValueResponse) {}
 	rpc bindToServer (bindRequest) returns (sToken) {}
  	rpc acceptCache (stream SetRequest) returns (SetResponse) {}
+	rpc cacheMigration (FetchRequest) returns (stream CacheEntry) {}
 }
 
 message sToken {
@@ -49,4 +50,16 @@ message SetResponse {
 	string key = 1;
 	bool success = 2;
 	sToken token = 3;
+}
+
+message FetchRequest {
+	string clientID = 1;
+	string sessionID = 2;
+}
+
+message CacheEntry {
+	string key = 1;
+	string clientID = 2;
+	string value = 3;
+	float timeStamp = 4;
 }
