@@ -61,5 +61,5 @@ message CacheEntry {
 	string key = 1;
 	string clientID = 2;
 	string value = 3;
-	float timeStamp = 4;
+	string timeStamp = 4;
 }

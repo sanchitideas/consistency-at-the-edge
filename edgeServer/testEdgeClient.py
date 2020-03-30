@@ -20,6 +20,8 @@ server2 = 'localhost:50052'
 def run(clientID):
     server = server1
     isSet = False
+    if(clientID == "client2"):
+        server = server2
     while(1):
         with grpc.insecure_channel(server) as channel:
             stub = kvstore_pb2_grpc.MultipleValuesStub(channel)

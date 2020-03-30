@@ -13,6 +13,7 @@ import centralserver_pb2_grpc
 
 import yaml
 import sys
+from threading import Lock
 
 import collections
 
@@ -47,12 +48,13 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     """Provides methods that implement functionality of Multiple Values Servicer."""
 
     def __init__(self, serverID):
-        self.cache = LRUCache(100) #key - tuple(client specific key, clientID), Value - List (value, timestamp)
+        self.cache = LRUCache(6) #key - tuple(client specific key, clientID), Value - List (value, timestamp)
         self.serverID = serverID
         self.activeSessionIDs = set()    
         with open("neighbouringEdgeServer.yaml") as file:
             self.neighboringEdgeServers = yaml.safe_load(file)
         self.centralServerConn = self.connectCentralServer()  
+        self.cacheLock = Lock()
 
     
     def connectCentralServer(self):
@@ -69,9 +71,26 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
         with grpc.insecure_channel(self.neighboringEdgeServers[neighbourID]) as channel:
             stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
             response = stub.cacheMigration(kvstore_pb2.FetchRequest(clientID = clientID, sessionID = sessionID))
+            newEntries = []
             for entry in response:
-                print(entry.key, " ", entry.clientID, " ", entry.value, " ", entry.timeStamp)
+                newEntries.append([entry.key, entry.clientID, entry.value, float(entry.timeStamp)])
+        self.mergeCache(newEntries)
         self.activeSessionIDs.add(sessionID)
+        
+
+    def mergeCache(self, newEntries):
+        entries = []
+        self.cacheLock.acquire()
+        for key, value in self.cache.localCache.items():
+            entries.append([key[0], key[1], value[0], value[1]])
+        entries.extend(newEntries)
+        entries.sort(key = lambda x: x[3], reverse = True) #sorting by time stamp
+        entries = entries[:self.cache.capacity]
+        self.cache.localCache.clear() #clearing the cache. May need to remove it later
+        for entry in entries[::-1]:
+            self.cache.set((entry[0], entry[1]), [entry[2], entry[3]])
+        self.cacheLock.release()
+
 
     def cacheMigration(self, request, context):
         if(request.sessionID not in self.activeSessionIDs):
@@ -83,7 +102,7 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
             try:
                 if(key[1] == clientID):
                     toRemoveKeys.append(key)
-                    yield kvstore_pb2.CacheEntry(key = key[0], clientID = key[1], value = value[0], timeStamp = value[1])
+                    yield kvstore_pb2.CacheEntry(key = key[0], clientID = key[1], value = value[0], timeStamp = str(value[1]))
             except Exception as ex:
                 print(ex)
                 print("could not migrate entry ", key, ":", value)
@@ -115,6 +134,7 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
         if(request.token.sessionID not in self.activeSessionIDs):
             #transfer from neighibouring edge node
             self.fetchFromNeighbour(request.token.serverID, request.token.clientID, request.token.sessionID)  
+        
         toReturn = self.cache.get((request.key, request.token.clientID))
         if(not toReturn):
             #fetch from central server
