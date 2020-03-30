@@ -1,0 +1,7 @@
+centralServer: "localhost:50050"
+server1: "localhost:50051"
+server2: "localhost:50052"
+server3: "localhost:50053"
+server4: "localhost:50054"
+server5: "localhost:50055"
+server6: "localhost:50056"
