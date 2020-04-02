@@ -7,7 +7,6 @@ service MultipleValues {
  	rpc setValue (SetRequest) returns (SetResponse) {}
  	rpc getValue (ValueRequest) returns (ValueResponse) {}
 	rpc bindToServer (bindRequest) returns (sToken) {}
- 	rpc acceptCache (stream SetRequest) returns (SetResponse) {}
 	rpc cacheMigration (FetchRequest) returns (stream CacheEntry) {}
 }
 

@@ -14,9 +14,12 @@ import centralserver_pb2_grpc
 import yaml
 import sys
 from threading import Lock
+from threading import Timer
 
 import collections
 
+
+INVALID_SESSION = "invalid_session"
 
 class LRUCache:
 
@@ -50,12 +53,25 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     def __init__(self, serverID):
         self.cache = LRUCache(6) #key - tuple(client specific key, clientID), Value - List (value, timestamp)
         self.serverID = serverID
-        self.activeSessionIDs = set()    
+        self.activeSessionIDs = {}    
         with open("neighbouringEdgeServer.yaml") as file:
             self.neighboringEdgeServers = yaml.safe_load(file)
         self.centralServerConn = self.connectCentralServer()  
         self.cacheLock = Lock()
-
+        self.epoch = -1
+        self.changeEpochAndCollectGarbage()
+    
+    def changeEpochAndCollectGarbage(self):
+        self.epoch += 1
+        if(self.epoch >= 2):
+            toRemove = []
+            for k,v in self.activeSessionIDs.items():
+                if(v <= self.epoch - 2):
+                    toRemove.append(k)
+            for key in toRemove:
+                del self.activeSessionIDs[key] 
+                #should we clear cache here as well?  
+        Timer(1200, self.changeEpochAndCollectGarbage).start() #collecting garbage in background 20 mins
     
     def connectCentralServer(self):
         channel = grpc.insecure_channel(self.neighboringEdgeServers["centralServer"])         
@@ -72,10 +88,14 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
             stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
             response = stub.cacheMigration(kvstore_pb2.FetchRequest(clientID = clientID, sessionID = sessionID))
             newEntries = []
-            for entry in response:
+            for i, entry in enumerate(response):
+                if (i == 0):
+                    if(entry.key == INVALID_SESSION):
+                        return False
                 newEntries.append([entry.key, entry.clientID, entry.value, float(entry.timeStamp)])
         self.mergeCache(newEntries)
-        self.activeSessionIDs.add(sessionID)
+        self.activeSessionIDs[sessionID] = self.epoch
+        return True
         
 
     def mergeCache(self, newEntries):
@@ -93,9 +113,10 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
 
 
     def cacheMigration(self, request, context):
-        if(request.sessionID not in self.activeSessionIDs):
+        if(request.sessionID not in self.activeSessionIDs.keys()):
             #notify the destination server that this session has been invalidated
-            pass    
+            yield kvstore_pb2.CacheEntry(key = INVALID_SESSION, clientID = INVALID_SESSION, value = INVALID_SESSION, timeStamp = INVALID_SESSION)
+            return    
         clientID = request.clientID
         toRemoveKeys = []
         for key, value in self.cache.localCache.items():
@@ -108,33 +129,62 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
                 print("could not migrate entry ", key, ":", value)
         for key in toRemoveKeys:
             del self.cache.localCache[key]
-        self.activeSessionIDs.remove(request.sessionID)
+        del self.activeSessionIDs[request.sessionID]
+        #self.activeSessionIDs.remove(request.sessionID)
 
     def bindToServer(self, request, context): #to establish the session for the first time        
         sessionID = request.clientID + "-" + str(time.time())
-        self.activeSessionIDs.add(sessionID) #remove once session shift
+        self.activeSessionIDs[sessionID] = self.epoch
+        #self.activeSessionIDs.add(sessionID) #remove once session shift
         return kvstore_pb2.sToken(clientID = request.clientID, serverID = self.serverID, sessionID = sessionID)
     
 
     def setValue(self, request, context):
-        if(request.token.sessionID not in self.activeSessionIDs):
-            #transfer from neighibouring edge node
-            self.fetchFromNeighbour(request.token.serverID, request.token.clientID, request.token.sessionID)
+        if(request.token.sessionID not in self.activeSessionIDs.keys()):
+            status = True
+            if(request.token.serverID == self.serverID or request.token.serverID not in self.neighboringEdgeServers.keys()): #this means that it was my session, but it was garbage collected or source was not in my neighbours
+                status = False
+            else: #transfer from neighibouring edge node
+                status = self.fetchFromNeighbour(request.token.serverID, request.token.clientID, request.token.sessionID)
             
+            if(not status): #create a new session and token
+                sessionID = request.token.clientID + "-" + str(time.time())
+                self.activeSessionIDs[sessionID] = self.epoch #adding this new session to active sessions
+                request.token.serverID = self.serverID
+                request.token.sessionID = sessionID
+            else: #fetch was succesful from the neighbour, now update the current server to self
+                request.token.serverID = self.serverID       
+
+        self.activeSessionIDs[request.token.sessionID] = self.epoch
+
         centralServerResponse = self.writeToCentralServer(request.key, request.value)
         if(centralServerResponse.success):
             currentTime = time.time()          
             self.cache.set((request.key, request.token.clientID), [request.value, currentTime])
-            #request.token.sessionID = "server"
             return kvstore_pb2.SetResponse(key=request.key, success=True, token = request.token)
         else:
             return kvstore_pb2.SetResponse(key=request.key, success=False, token = request.token)
 
     def getValue(self, request, context):
-        if(request.token.sessionID not in self.activeSessionIDs):
-            #transfer from neighibouring edge node
-            self.fetchFromNeighbour(request.token.serverID, request.token.clientID, request.token.sessionID)  
+        if(request.token.sessionID not in self.activeSessionIDs.keys()):
+            status = True
+            if(request.token.serverID == self.serverID or request.token.serverID not in self.neighboringEdgeServers.keys()): #this means that it was my session, but it was garbage collected or source was not in my neighbours
+                status = False
+            else: #transfer from neighibouring edge node
+                status = self.fetchFromNeighbour(request.token.serverID, request.token.clientID, request.token.sessionID)
+            
+            if(not status): #create a new session and token
+                sessionID = request.token.clientID + "-" + str(time.time())
+                self.activeSessionIDs[sessionID] = self.epoch #adding this new session to active sessions
+                request.token.serverID = self.serverID
+                request.token.sessionID = sessionID
+                
+            else: #fetch was succesful from the neighbour, now update the current server to self
+                request.token.serverID = self.serverID
+
         
+        self.activeSessionIDs[request.token.sessionID] = self.epoch #making the session a part of current epoch
+
         toReturn = self.cache.get((request.key, request.token.clientID))
         if(not toReturn):
             #fetch from central server
@@ -148,19 +198,6 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
 
         return kvstore_pb2.ValueResponse(key=request.key, value = toReturn[0], timeStamp = toReturn[1], token = request.token)
 
-    
-    # def getValuesForKeys(self, request_iterator, context):
-    #     for request in request_iterator:
-    #         yield kvstore_pb2.ValueResponse(key=request.key, value="sample_value")       
-
-    # def setValuesForKeys(self, request_iterator, context):
-    #     for request in request_iterator:
-    #         yield kvstore_pb2.SetResponse(key=request.key, success=True)
-            
-    def acceptCache(self, request_iterator, context):
-        for request in request_iterator:
-            print(request.key)
-        return kvstore_pb2.SetResponse(key="sample_key", success=True)
 
 
 def serve(serverID):
