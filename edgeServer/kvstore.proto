@@ -58,7 +58,6 @@ message FetchRequest {
 
 message CacheEntry {
 	string key = 1;
-	string clientID = 2;
-	string value = 3;
-	string timeStamp = 4;
+	string value = 2;
+	string timeStamp = 3;
 }
