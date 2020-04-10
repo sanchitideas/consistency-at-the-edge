@@ -2,52 +2,52 @@ from concurrent import futures
 import time
 import math
 import logging
-​
+
 import grpc
-​
+
 import kvstore_pb2
 import kvstore_pb2_grpc
-​
+
 import centralserver_pb2
 import centralserver_pb2_grpc
-​
+
 import yaml
 import sys
 from threading import Lock
 from threading import Timer
-​
+
 import collections
-​
-​
+
+
 INVALID_SESSION = "invalid_session"
-​
+
 class User:
     def __init__(self, sessID, clientID):
         self.sessionID = sessID
         self.clientID = clientID
         self.cache = LRUCache(6)
-​
-​
+
+
 class LRUCache:
-​
+
     # @param capacity, an integer
     def __init__(self, capacity): #capacity- number of rows allowed
         self.capacity = capacity
         self.currentCache = collections.OrderedDict()
-        self.TransferredCache = collections.OrderedDict()
-​
+        #self.TransferredCache = collections.OrderedDict()
+
     # @return an integer
     def get(self, key):
         if key not in self.currentCache:
-            if key not in self.TransferredCache:
-                return None
-            else:
-                value = self.TransferredCache.pop(key)
+            #if key not in self.TransferredCache:
+            return None
+            #else:
+            #    value = self.TransferredCache.pop(key)
         else:       
             value = self.currentCache.pop(key)
         self.currentCache[key] = value
         return value
-​
+
     # @param key, an integer
     # @param value, an integer
     # @return nothing
@@ -57,26 +57,16 @@ class LRUCache:
         elif len(self.currentCache) == self.capacity:
             self.currentCache.popitem(last=False)
         self.currentCache[key] = value
-​
-    def mergeCache(self, newEntries):
-        entries = []
-        entries.extend(newEntries)
-        # they would already be sorted by time, so we don't need to sort
-        #entries.sort(key = lambda x: x[2], reverse = True) #sorting by time stamp
-        entries = entries[:self.capacity]
-        #self.cache.currentCache.clear() #clearing the cache. May need to remove it later
-        for entry in entries[::-1]:
-            if len(self.currentCache) == self.capacity:
-                # old values are not needed, as we got as many as we need
-                break
-            if entry[0] not in self.currentCache:
-                self.currentCache[entry[0]] = [entry[1], entry[2]]
-​
-​
-​
+
+    def switchCache(self, newEntries):
+        for entry in newEntries[::-1]:
+            self.currentCache[entry[0]] = [entry[1], entry[2]]
+
+
+
 class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     """Provides methods that implement functionality of Multiple Values Servicer."""
-​
+
     def __init__(self, serverID):
         #self.cache = LRUCache(6) #key - client specific key, Value - List (value, timestamp)
         self.serverID = serverID
@@ -87,7 +77,7 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
         self.users = collections.OrderedDict()
         self.epoch = -1
         self.changeEpochAndCollectGarbage()
-​
+
     def changeEpochAndCollectGarbage(self):
         self.epoch += 1
         if(self.epoch >= 2):
@@ -110,7 +100,7 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
     
     def readFromCentralServer(self, key):
         return self.centralServerConn.getValue(centralserver_pb2.CentralServerValueRequest(key=key))
-​
+
     def fetchFromNeighbour(self, neighbourID, clientID, sessionID):
         with grpc.insecure_channel(self.neighboringEdgeServers[neighbourID]) as channel:
             stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
@@ -121,10 +111,10 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
                     if(entry.key == INVALID_SESSION):
                         return False
                 newEntries.append([entry.key, entry.value, float(entry.timeStamp)])
-        self.users[clientID].cache.mergeCache(newEntries)
+        self.users[clientID].cache.switchCache(newEntries)
         self.activeSessionIDs[sessionID] = self.epoch
         return True
-​
+
     def cacheMigration(self, request, context):
         if(request.sessionID not in self.activeSessionIDs.keys()):
             #notify the destination server that this session has been invalidated
@@ -140,8 +130,8 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
         del self.activeSessionIDs[request.sessionID]
         del self.users[clientID]
         #self.activeSessionIDs.remove(request.sessionID)
-​
-​
+
+
     def bindToServer(self, request, context): #to establish the session for the first time        
         sessionID = request.clientID + "-" + str(time.time())
         self.activeSessionIDs[sessionID] = self.epoch
@@ -149,7 +139,7 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
         #self.activeSessionIDs.add(sessionID) #remove once session shift
         return kvstore_pb2.sToken(clientID = request.clientID, serverID = self.serverID, sessionID = sessionID)
     
-​
+
     def setValue(self, request, context):
         if(request.token.sessionID not in self.activeSessionIDs.keys()):
             status = True
@@ -168,9 +158,9 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
                 self.users[request.token.clientID] = User(sessionID, request.token.clientID)
             else: #fetch was succesful from the neighbour, now update the current server to self
                 request.token.serverID = self.serverID      
-​
+
         self.activeSessionIDs[request.token.sessionID] = self.epoch
-​
+
         centralServerResponse = self.writeToCentralServer(request.key, request.value)
         if(centralServerResponse.success):
             currentTime = time.time()          
@@ -178,7 +168,7 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
             return kvstore_pb2.SetResponse(key=request.key, success=True, token = request.token)
         else:
             return kvstore_pb2.SetResponse(key=request.key, success=False, token = request.token)
-​
+
     def getValue(self, request, context):
         if(request.token.sessionID not in self.activeSessionIDs.keys()):
             status = True
@@ -197,10 +187,10 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
                 
             else: #fetch was succesful from the neighbour, now update the current server to self
                 request.token.serverID = self.serverID
-​
+
         
         self.activeSessionIDs[request.token.sessionID] = self.epoch #making the session a part of current epoch
-​
+
         toReturn = self.users[request.token.clientID].cache.get(request.key)
         if(not toReturn):
             #fetch from central server
@@ -211,11 +201,11 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
                 toReturn = [centralServerResponse.value, currentTime]
             else:
                 return kvstore_pb2.ValueResponse(key=request.key, value = None, timeStamp = None, token = request.token)
-​
+
         return kvstore_pb2.ValueResponse(key=request.key, value = toReturn[0], timeStamp = toReturn[1], token = request.token)
-​
-​
-​
+
+
+
 def serve(serverID):
     with open("neighbouringEdgeServer.yaml") as file:
         neighboringEdgeServers = yaml.safe_load(file)
@@ -227,8 +217,8 @@ def serve(serverID):
     server.add_insecure_port(connectionInfo)
     server.start()
     server.wait_for_termination()
-​
-​
+
+
 if __name__ == '__main__':
     if(len(sys.argv) != 2):
         print("Usage: python3 edgeServer.py <serverID as defined in yaml>")
