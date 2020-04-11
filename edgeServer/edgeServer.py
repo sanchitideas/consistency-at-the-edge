@@ -78,7 +78,8 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
 	def changeEpochAndCollectGarbage(self):
 		toRemove= []
 		self.epoch += 1
-		for sessionID, user in self.activeSessionIDs:
+		for sessionID, user in self.activeSessionIDs.items():
+			# race conditions possible. They were also possible in the old design
 			if user.epoch <= self.epoch - 2:
 				toRemove.append(sessionID)
 		for entry in toRemove:
