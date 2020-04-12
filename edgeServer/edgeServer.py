@@ -20,7 +20,7 @@ import collections
 
 
 INVALID_SESSION = "invalid_session"
-INITIAL_CACHE_CAPACITY = 6
+INITIAL_CACHE_CAPACITY = 2000
 
 class User:
 	def __init__(self, sessID, clientID, currentEpoch):
@@ -84,7 +84,7 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
 				toRemove.append(sessionID)
 		for entry in toRemove:
 			del self.activeSessionIDs[entry]
-		Timer(1200, self.changeEpochAndCollectGarbage).start() #collecting garbage in background 20 mins
+		Timer(300, self.changeEpochAndCollectGarbage).start() #collecting garbage in background 20 mins
 	
 	def connectCentralServer(self):
 		channel = grpc.insecure_channel(self.neighboringEdgeServers["centralServer"])         
