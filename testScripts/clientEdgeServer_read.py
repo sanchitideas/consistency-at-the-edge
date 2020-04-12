@@ -12,7 +12,7 @@ import kvstore_pb2_grpc
 
 totalKeyRange = 50000
 hotspotKeyRange = 20000
-totalRequest = 15000
+totalRequest = 25000
 centralServer = 'pcap1.utah.cloudlab.us:50050'
 edgeServers = ["c220g2-010629.wisc.cloudlab.us:50051", "c220g2-011303.wisc.cloudlab.us:50052", "c220g2-010631.wisc.cloudlab.us:50053", "c220g2-010630.wisc.cloudlab.us:50054"]
 

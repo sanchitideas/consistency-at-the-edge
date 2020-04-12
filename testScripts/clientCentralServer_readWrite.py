@@ -13,7 +13,7 @@ import centralserver_pb2_grpc
 
 totalKeyRange = 50000
 hotspotKeyRange = 20000
-totalRequest = 15000
+totalRequest = 25000
 centralServer = 'pcap1.utah.cloudlab.us:50050'
 
 
