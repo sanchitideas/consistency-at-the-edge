@@ -1,4 +1,4 @@
-centralServer: "pcap1.utah.cloudlab.us50050"
+centralServer: "pcap1.utah.cloudlab.us:50050"
 server1: "c220g2-010629.wisc.cloudlab.us:50051"
 server2: "c220g2-011303.wisc.cloudlab.us:50052"
 server3: "c220g2-010631.wisc.cloudlab.us:50053"
