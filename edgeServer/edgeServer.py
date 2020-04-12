@@ -32,7 +32,6 @@ class User:
 
 
 class LRUCache:
-
 	# @param capacity, an integer
 	def __init__(self, capacity): #capacity- number of rows allowed
 		self.incrementSize = capacity

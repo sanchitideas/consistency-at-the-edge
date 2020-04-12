@@ -4,25 +4,28 @@ import time
 from statistics import mean 
 
 if(len(sys.argv) != 3):
-    print("usage: python3 spawnClient.py <mode(r/rw)> <numOfClients>")
+    print("usage: python3 spawnClient.py <mode(cr/crw/er/erw)> <numOfClients>")
     sys.exit(1)
 
 mode = sys.argv[1]
 nClients = int(sys.argv[2])
 scriptToRun = None
-if(mode == "r"):
+if (mode == "cr"):
     scriptToRun = "clientCentralServer_read.py"
-else:
+elif (mode == "crw"):
     scriptToRun = "clientCentralServer_readWrite.py"
-
+elif (mode == "er"):
+    scriptToRun = "clientEdgeServer_read.py"
+elif (mode == "erw"):
+    scriptToRun = "clientEdgeServer_readWrite.py"
 
 clients = []
-for i in range (nClients):
-    
+for i in range (nClients):    
     clients.append(subprocess.Popen(["python3", scriptToRun, str(i+1)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
 
 for i in range (nClients):
     clients[i].wait()
+
 
 outputs = []
 errors = []
