@@ -20,7 +20,7 @@ for mode in modeList:
     elif (mode == "erw"):
         scriptToRun = "clientEdgeServer_readWrite.py"
 
-    clientSize = [1, 2, 4, 8, 16, 32]
+    clientSize = [1, 2, 4, 8, 16, 32, 64]
 
     print("mode: ", mode)
     print("************************")
