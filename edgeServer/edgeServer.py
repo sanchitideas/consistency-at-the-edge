@@ -20,13 +20,14 @@ import collections
 
 
 INVALID_SESSION = "invalid_session"
+INITIAL_CACHE_CAPACITY = 6
 
 class User:
 	def __init__(self, sessID, clientID, currentEpoch):
 		self.sessionID = sessID
 		# not sure why we'd need clientID, but leaving it here for the future
 		self.clientID = clientID
-		self.cache = LRUCache(6)
+		self.cache = LRUCache(INITIAL_CACHE_CAPACITY)
 		self.epoch = currentEpoch
 
 
@@ -34,6 +35,8 @@ class LRUCache:
 
 	# @param capacity, an integer
 	def __init__(self, capacity): #capacity- number of rows allowed
+		self.incrementSize = capacity
+		self.maxCacheCapacity = 5*capacity
 		self.capacity = capacity
 		self.currentCache = collections.OrderedDict()
 
@@ -53,13 +56,11 @@ class LRUCache:
 		if key in self.currentCache:
 			self.currentCache.pop(key)
 		elif len(self.currentCache) == self.capacity:
-			self.currentCache.popitem(last=False)
+			if(self.capacity == self.maxCacheCapacity):
+				self.currentCache.popitem(last=False)
+			else:
+				self.capacity += self.incrementSize
 		self.currentCache[key] = value
-
-	def switchCache(self, newEntries):
-		for entry in newEntries[::-1]:
-			self.currentCache[entry[0]] = [entry[1], entry[2]]
-
 
 
 class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
@@ -100,14 +101,14 @@ class KVStoreServicer(kvstore_pb2_grpc.MultipleValuesServicer):
 		with grpc.insecure_channel(self.neighboringEdgeServers[neighbourID]) as channel:
 			stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
 			response = stub.cacheMigration(kvstore_pb2.FetchRequest(clientID = clientID, sessionID = sessionID))
-			newEntries = []
+			newCache = LRUCache(INITIAL_CACHE_CAPACITY)
 			for i, entry in enumerate(response):
 				if (i == 0):
 					if(entry.key == INVALID_SESSION):
 						return False
-				newEntries.append([entry.key, entry.value, float(entry.timeStamp)])
+				newCache.set(entry.key, [entry.value, float(entry.timeStamp)])
 		self.activeSessionIDs[sessionID] = User(sessionID, clientID, self.epoch)
-		self.activeSessionIDs[sessionID].cache.switchCache(newEntries)
+		self.activeSessionIDs[sessionID].cache = newCache #updating the cache here (linking to user cache)
 		return True
 
 	def cacheMigration(self, request, context):
