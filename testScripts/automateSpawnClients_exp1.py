@@ -7,7 +7,8 @@ if(len(sys.argv) != 1):
     print("usage: python3 spawnClient.py")
     sys.exit(1)
 
-modeList = ["cr", "crw", "er", "erw"]
+modeList = ["cr", "crw"]
+#modeList = ["cr", "crw", "er", "erw"]
 file1 = open("results_exp1.txt",'w')
 for mode in modeList:
     scriptToRun = None
