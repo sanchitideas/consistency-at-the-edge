@@ -3,7 +3,7 @@ import sys
 import time
 from statistics import mean 
 
-def performExperiments():
+def performExperiments(numClients):
     codeDirectory = "/users/aashish/consistency-at-the-edge/edgeServer"
     edgeServerLogins = {"server1":"root@c220g2-010629.wisc.cloudlab.us", 
         "server2":"root@c220g2-011303.wisc.cloudlab.us",
@@ -11,7 +11,7 @@ def performExperiments():
         "server4":"root@c220g2-010630.wisc.cloudlab.us"}
     modeList = ["er", "erw"]
     #modeList = ["cr", "crw", "er", "erw"]
-    file1 = open("results_exp2.txt",'w')
+    file1 = open("results_exp2.txt",'a')
     for mode in modeList:
         scriptToRun = None
         if (mode == "cr"):
@@ -23,7 +23,8 @@ def performExperiments():
         elif (mode == "erw"):
             scriptToRun = "clientEdgeServer_readWrite.py"
 
-        clientSize = [1, 2, 4, 8, 16, 32, 64]
+        clientSize = []
+        clientSize.append(int(numClients))
 
         print("mode: ", mode)
         print("************************")
@@ -65,11 +66,11 @@ def performExperiments():
                 clientAvg.append(float(o[1].split(': ')[1]))
             for edgeServerLogin in edgeServerLogins.values():
                 subprocess.Popen(["ssh", "-oStrictHostKeyChecking=no", "-i", 
-                    "key", "%s"%(edgeServerLogin), "cd", 
-                    "%s"%(codeDirectory) + ";", "kill", "-9", 
+                    "key", "%s"%(edgeServerLogin), "kill", "-9", 
                     "$(pgrep python3);", "exit"], stdin=subprocess.PIPE, 
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            
+            # sleep
+            time.sleep(30)            
             print("Average for",nClients,"clients: ", mean(clientAvg))
             file1.write("Average for {0} clients: {1}\n".format(nClients, 
                 mean(clientAvg)))
@@ -77,7 +78,7 @@ def performExperiments():
     file1.close()
 
 if __name__ == "__main__":
-    if(len(sys.argv) != 1):
-        print("usage: python3 spawnClient.py")
+    if(len(sys.argv) != 2):
+        print("usage: python3 spawnClient.py numClients")
         sys.exit(1)
-    performExperiments()
+    performExperiments(sys.argv[1])
