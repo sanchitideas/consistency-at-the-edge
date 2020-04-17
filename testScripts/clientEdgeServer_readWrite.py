@@ -12,7 +12,7 @@ import kvstore_pb2
 import kvstore_pb2_grpc
 
 totalKeyRange = 50000
-hotspotKeyRange = 20000
+hotspotKeyRange = 5000
 totalRequest = 25000
 centralServer = 'pcap1.utah.cloudlab.us:50050'
 edgeServers = ["c220g2-010629.wisc.cloudlab.us:50051", "c220g2-011303.wisc.cloudlab.us:50052", "c220g2-010631.wisc.cloudlab.us:50053", "c220g2-010630.wisc.cloudlab.us:50054"]
@@ -35,11 +35,12 @@ def runClient(clientNumber):
     UpperRange = lowerRange + totalKeyRange - 1
     hotspotUpperRange = lowerRange + hotspotKeyRange - 1
     clientID = "client" + str(clientNumber)
+    timeList = []
     with grpc.insecure_channel(edgeServers[(clientNumber-1)%4]) as channel:
         stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
         sToken = stub.bindToServer(kvstore_pb2.bindRequest(clientID = clientID))
         for i in range(totalRequest):
-            if(i%200 == 0):
+            if(i%10 == 0):
                 keyID = random.randint(hotspotUpperRange+1, UpperRange)
             else:
                 keyID = random.randint(lowerRange, hotspotUpperRange)
@@ -58,6 +59,7 @@ def runClient(clientNumber):
                 response = stub.getValue(kvstore_pb2.ValueRequest(key=key, token = sToken))
                 after = time.time()                
                 totalTime += (after-before)
+                timeList.append(after-before)
                 if(response.value is None):
                     print("could not read: ",keyID)
             else: #perfrom write
@@ -66,8 +68,14 @@ def runClient(clientNumber):
                 response = stub.setValue(kvstore_pb2.SetRequest(key=key, value = value, token = sToken))
                 after = time.time()
                 totalTime += (after-before)
+                timeList.append(after-before)
                 if(response.success is None):
                     print("could not write: ",keyID)
+        fileName = 'readWrite_' + clientID + '.txt'
+        with open(fileName, 'w') as file1:
+            for t in timeList:
+                file1.write(str(t))
+                file1.write('\n')
 
 if __name__ == '__main__':
     if(len(sys.argv) != 2):

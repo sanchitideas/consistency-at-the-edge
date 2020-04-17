@@ -11,7 +11,7 @@ import centralserver_pb2
 import centralserver_pb2_grpc
 
 totalKeyRange = 50000
-hotspotKeyRange = 20000
+hotspotKeyRange = 5000
 totalRequest = 25000
 centralServer = 'pcap1.utah.cloudlab.us:50050'
 
@@ -30,7 +30,7 @@ def runClient(clientNumber):
     with grpc.insecure_channel(centralServer) as channel:
         stub = centralserver_pb2_grpc.CentralServerStub(channel)
         for i in range(totalRequest):
-            if(i%200 == 0):
+            if(i%10 == 0):
                 keyID = random.randint(hotspotUpperRange+1, UpperRange)
             else:
                 keyID = random.randint(lowerRange, hotspotUpperRange)
