@@ -14,7 +14,7 @@ def performExperiments(numClients):
     file1 = open("exp2.txt",'a')
     for mode in modeList:
         scriptToRun = None
-        elif (mode == "er"):
+        if (mode == "er"):
             scriptToRun = "clientEdgeServerTxRead.py"
         elif (mode == "erw"):
             scriptToRun = "clientEdgeServerTxReadWrite.py"
