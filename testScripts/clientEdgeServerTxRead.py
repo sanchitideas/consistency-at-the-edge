@@ -10,7 +10,7 @@ import time
 import kvstore_pb2
 import kvstore_pb2_grpc
 
-'''
+
 totalKeyRange = 50000
 hotspotKeyRange = 5000
 totalRequests = 25000
@@ -18,13 +18,14 @@ centralServer = 'pcap1.utah.cloudlab.us:50050'
 edgeServers = ["c220g2-010629.wisc.cloudlab.us:50051", 
 "c220g2-011303.wisc.cloudlab.us:50052", "c220g2-010631.wisc.cloudlab.us:50053",
 "c220g2-010630.wisc.cloudlab.us:50054"]
-'''
 
+'''
 totalKeyRange = 50
 hotspotKeyRange = 20
 totalRequests = 15
 centralServer = 'localhost:50050'
 edgeServers = ["localhost:50051", "localhost:50052", "localhost:50053", "localhost:50054"]
+'''
 
 totalTime = 0
 
@@ -94,7 +95,7 @@ def runClient(clientNumber, totalClients):
 		
 
 		
-	fileName = 'read_' + clientID + "_" + totalClients + '.txt'
+	fileName = 'read_' + clientID + "_of_" + str(totalClients) + '.txt'
 	with open(fileName, 'a') as file1:
 		for t in timeList:
 			file1.write(str(t))
@@ -105,7 +106,7 @@ if __name__ == '__main__':
 	if(len(sys.argv) != 3):
 		print("Usage: python3 clientEdgeServer_read <clientNumber> <totalClients>")
 		exit(1)
-	runClient(int(sys.argv[1]), sys.argv[2])
+	runClient(int(sys.argv[1]), int(sys.argv[2]) + 1)
 	print("timeTaken:", totalTime)
 	print("AverageTime:", totalTime/totalRequests)
 	print("success")
