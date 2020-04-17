@@ -10,7 +10,7 @@ import time
 import kvstore_pb2
 import kvstore_pb2_grpc
 
-
+'''
 totalKeyRange = 50000
 hotspotKeyRange = 5000
 totalRequests = 25000
@@ -25,7 +25,6 @@ hotspotKeyRange = 20
 totalRequests = 15
 centralServer = 'localhost:50050'
 edgeServers = ["localhost:50051", "localhost:50052", "localhost:50053", "localhost:50054"]
-'''
 
 totalTime = 0
 
@@ -43,7 +42,7 @@ def runClient(clientNumber, totalClients):
 		lowerTxRange = int(totalRequests * (2 * j + 1)/8)
 		upperTxRange = int(totalRequests * (j + 1)/4)
 		lastRequestNo = random.randint(lowerTxRange, upperTxRange - 1)
-		lastRequestForEdgeServer.append(lastRequestNo - lowerTxRange + 1)
+		lastRequestForEdgeServer.append(lastRequestNo)
 	# back to the first edge server
 	lastRequestForEdgeServer.append(totalRequests)
 	#print(lastRequestForEdgeServer)
@@ -59,7 +58,10 @@ def runClient(clientNumber, totalClients):
 			stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
 			if k == 0:
 			   sToken = stub.bindToServer(kvstore_pb2.bindRequest(clientID = clientID))
-			lastReqNo = lastRequestForEdgeServer[k]
+			if k != len(edgeServers):
+				lastReqNo = lastRequestForEdgeServer[k]
+			else:
+				lastReqNo = totalRequests
 			for i in range(initialReqNo, lastReqNo):
 				if(i%10 == 0):
 					keyID = random.randint(hotspotUpperRange+1, UpperRange)
@@ -95,7 +97,7 @@ def runClient(clientNumber, totalClients):
 		
 
 		
-	fileName = 'read_' + clientID + "_of_" + str(totalClients) + '.txt'
+	fileName = 'read_' + clientID + "_of_" + totalClients + '.txt'
 	with open(fileName, 'a') as file1:
 		for t in timeList:
 			file1.write(str(t))
@@ -106,7 +108,7 @@ if __name__ == '__main__':
 	if(len(sys.argv) != 3):
 		print("Usage: python3 clientEdgeServer_read <clientNumber> <totalClients>")
 		exit(1)
-	runClient(int(sys.argv[1]), int(sys.argv[2]) + 1)
+	runClient(int(sys.argv[1]), sys.argv[2])
 	print("timeTaken:", totalTime)
 	print("AverageTime:", totalTime/totalRequests)
 	print("success")
