@@ -10,21 +10,21 @@ import time
 import kvstore_pb2
 import kvstore_pb2_grpc
 
-'''
+
 totalKeyRange = 50000
 hotspotKeyRange = 5000
 totalRequests = 25000
-centralServer = 'pcap1.utah.cloudlab.us:50050'
-edgeServers = ["c220g2-010629.wisc.cloudlab.us:50051", 
-"c220g2-011303.wisc.cloudlab.us:50052", "c220g2-010631.wisc.cloudlab.us:50053",
-"c220g2-010630.wisc.cloudlab.us:50054"]
+
 
 '''
 totalKeyRange = 50
 hotspotKeyRange = 20
 totalRequests = 15
-centralServer = 'localhost:50050'
-edgeServers = ["localhost:50051", "localhost:50052", "localhost:50053", "localhost:50054"]
+'''
+centralServer = 'pcap1.utah.cloudlab.us:50050'
+edgeServers = ["c220g2-010629.wisc.cloudlab.us:50051", 
+"c220g2-011303.wisc.cloudlab.us:50052", "c220g2-010631.wisc.cloudlab.us:50053",
+"c220g2-010630.wisc.cloudlab.us:50054"]
 
 totalTime = 0
 
@@ -57,11 +57,8 @@ def runClient(clientNumber, totalClients):
 		with grpc.insecure_channel(edgeServers[edgeServerToConnect]) as channel:
 			stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
 			if k == 0:
-			   sToken = stub.bindToServer(kvstore_pb2.bindRequest(clientID = clientID))
-			if k != len(edgeServers):
-				lastReqNo = lastRequestForEdgeServer[k]
-			else:
-				lastReqNo = totalRequests
+				sToken = stub.bindToServer(kvstore_pb2.bindRequest(clientID = clientID))
+			lastReqNo = lastRequestForEdgeServer[k]
 			for i in range(initialReqNo, lastReqNo):
 				if(i%10 == 0):
 					keyID = random.randint(hotspotUpperRange+1, UpperRange)
@@ -87,18 +84,18 @@ def runClient(clientNumber, totalClients):
 				#    print(key, " -GotValue")
 		initialReqNo = lastRequestForEdgeServer[k]
 
-		if k == len(edgeServers):
+		if k == len(edgeServers) - 1:
 			edgeServerToConnect = firstEdgeServer
-		else:
+		elif k < len(edgeServers) - 1:
 			edgeServersVisited.append(edgeServerToConnect)
-			while edgeServerToConnect not in edgeServersVisited:
+			while edgeServerToConnect in edgeServersVisited:
 				edgeServerToConnect = random.randint(0, len(edgeServers) - 1)
-				#print(edgeServerToConnect)
 		
 
 		
 	fileName = 'read_' + clientID + "_of_" + totalClients + '.txt'
-	with open(fileName, 'a') as file1:
+	with open(fileName, 'w') as file1:
+		file1.truncate()
 		for t in timeList:
 			file1.write(str(t))
 			file1.write('\n')

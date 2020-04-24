@@ -10,7 +10,9 @@ import time
 
 import kvstore_pb2
 import kvstore_pb2_grpc
-'''
+
+
+
 totalKeyRange = 50000
 hotspotKeyRange = 5000
 totalRequests = 25000
@@ -23,7 +25,7 @@ hotspotKeyRange = 20
 totalRequests = 15
 centralServer = 'localhost:50050'
 edgeServers = ["localhost:50051", "localhost:50052", "localhost:50053", "localhost:50054"]
-
+'''
 
 totalTime = 0
 
@@ -64,10 +66,8 @@ def runClient(clientNumber, totalClients):
 			stub = kvstore_pb2_grpc.MultipleValuesStub(channel)
 			if k == 0:
 				sToken = stub.bindToServer(kvstore_pb2.bindRequest(clientID = clientID))
-			if k != len(edgeServers):
-				lastReqNo = lastRequestForEdgeServer[k]
-			else:
-				lastReqNo = totalRequests
+			
+			lastReqNo = lastRequestForEdgeServer[k]
 			for i in range(initialReqNo, lastReqNo):
 				if(i%10 == 0):
 					keyID = random.randint(hotspotUpperRange+1, UpperRange)
@@ -110,11 +110,11 @@ def runClient(clientNumber, totalClients):
 		initialReqNo = lastRequestForEdgeServer[k]
 
 
-		if k == len(edgeServers):
+		if k == len(edgeServers) - 1:
 			edgeServerToConnect = firstEdgeServer
-		else:
+		elif k < len(edgeServers) - 1:
 			edgeServersVisited.append(edgeServerToConnect)
-			while edgeServerToConnect not in edgeServersVisited:
+			while edgeServerToConnect in edgeServersVisited:
 				edgeServerToConnect = random.randint(0, len(edgeServers) - 1)
 				#print(edgeServerToConnect)
 	fileName = 'readWrite_' + clientID + "_of_" + totalClients + '.txt'
