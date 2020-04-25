@@ -5,15 +5,17 @@ def summarizeWorkload(seedNumber, clientNo):
 	random.seed(int(seedNumber))
 
 	# edit this workload here if required
-	totalKeyRange = 80000
+	totalReadKeyRange = 80000
+	totalWriteKeyRange = 50000
 	readHotspotKeyRange = 8000
 	writeHotspotKeyRange = 5000
 	totalRequests = 30000
 	clientNumber = int(clientNo)
-	lowerRange = (clientNumber-1)*totalKeyRange + 1
-	UpperRange = lowerRange + totalKeyRange - 1
-	readHotspotUpperRange = lowerRange + readHotspotKeyRange - 1
-	writeHotspotUpperRange = lowerRange + writeHotspotKeyRange - 1
+	lowerRange = (clientNumber-1)*totalReadKeyRange + 1
+	readUpperRange = lowerRange + totalReadKeyRange - 1
+	writeUpperRange = lowerRange + totalWriteKeyRange - 1
+	readHotspotreadUpperRange = lowerRange + readHotspotKeyRange - 1
+	writeHotspotreadUpperRange = lowerRange + writeHotspotKeyRange - 1
 	lastRequestForEdgeServer = []
 	for j in range(4):
 		# prevent the case of all clients establishing connections at once
@@ -45,16 +47,18 @@ def summarizeWorkload(seedNumber, clientNo):
 			toss = random.randint(1,10)
 			if(i%10 == 0):
 				if(toss%2==0):
-					keyID = random.randint(readHotspotUpperRange+1, 
-						UpperRange)
+					keyID = random.randint(readHotspotreadUpperRange+1, 
+						readUpperRange)
 				else:
-					keyID = random.randint(writeHotspotUpperRange+1, 
-						UpperRange) 	 
+					keyID = random.randint(writeHotspotreadUpperRange+1, 
+						writeUpperRange) 	 
 			else:
 				if(toss%2==0): #perform read
-					keyID = random.randint(lowerRange, readHotspotUpperRange)
+					keyID = random.randint(lowerRange, 
+						readHotspotreadUpperRange)
 				else:
-					keyID = random.randint(lowerRange, writeHotspotUpperRange)
+					keyID = random.randint(lowerRange, 
+						writeHotspotreadUpperRange)
 			allRequests.append(keyID)
 			if keyID not in localReqs:
 				localReqs.append(keyID)

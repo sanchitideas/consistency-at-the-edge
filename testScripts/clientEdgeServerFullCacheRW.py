@@ -12,11 +12,14 @@ import kvstore_pb2
 import kvstore_pb2_grpc
 
 
-
-totalKeyRange = 80000
+# edit this workload here if required
+totalReadKeyRange = 80000
+totalWriteKeyRange = 50000
 readHotspotKeyRange = 8000
 writeHotspotKeyRange = 5000
 totalRequests = 30000
+
+
 centralServer = 'pcap1.utah.cloudlab.us:50050'
 edgeServers = ["c220g2-010629.wisc.cloudlab.us:50051", 
 "c220g2-011303.wisc.cloudlab.us:50052", "c220g2-010631.wisc.cloudlab.us:50053", 
@@ -38,10 +41,11 @@ def random_generator(size=1048576-49, chars=string.ascii_letters + string.digits
 	return ''.join(random.choice(chars) for x in range(size))
 
 def runClient(clientNumber, totalClients):
-	lowerRange = (clientNumber-1)*totalKeyRange + 1
-	UpperRange = lowerRange + totalKeyRange - 1
-	readHotspotUpperRange = lowerRange + readHotspotKeyRange - 1
-	writeHotspotUpperRange = lowerRange + writeHotspotKeyRange - 1
+	lowerRange = (clientNumber-1)*totalReadKeyRange + 1
+	readUpperRange = lowerRange + totalReadKeyRange - 1
+	writeUpperRange = lowerRange + totalWriteKeyRange - 1
+	readHotspotreadUpperRange = lowerRange + readHotspotKeyRange - 1
+	writeHotspotreadUpperRange = lowerRange + writeHotspotKeyRange - 1
 	clientID = "client" + str(clientNumber)
 	timeList = []
 	# there will be transitions to 4 edge servers, back to the very first one
@@ -77,14 +81,18 @@ def runClient(clientNumber, totalClients):
 				toss = random.randint(1,10)
 				if(i%10 == 0):
 					if(toss%2==0): #perform read
-						keyID = random.randint(readHotspotUpperRange+1, UpperRange)
+						keyID = random.randint(readHotspotUpperRange+1, 
+							readUpperRange)
 					else:
-						keyID = random.randint(writeHotspotUpperRange+1, UpperRange)
+						keyID = random.randint(writeHotspotUpperRange+1, 
+							writeUpperRange)
 				else:
 					if(toss%2==0): #perform read
-						keyID = random.randint(lowerRange, readHotspotUpperRange)
+						keyID = random.randint(lowerRange, 
+							readHotspotUpperRange)
 					else:
-						keyID = random.randint(lowerRange, writeHotspotUpperRange)
+						keyID = random.randint(lowerRange, 
+							writeHotspotUpperRange)
 				s = str(keyID)
 				len_s = len(s)
 				x = 128 -49 - len_s
