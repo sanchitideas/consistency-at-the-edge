@@ -11,9 +11,9 @@ import kvstore_pb2
 import kvstore_pb2_grpc
 
 
-totalKeyRange = 50000
-hotspotKeyRange = 5000
-totalRequests = 25000
+totalKeyRange = 80000
+hotspotKeyRange = 8000
+totalRequests = 30000
 
 
 '''
@@ -22,13 +22,14 @@ hotspotKeyRange = 20
 totalRequests = 15
 '''
 centralServer = 'pcap1.utah.cloudlab.us:50050'
-edgeServers = ["c220g2-010629.wisc.cloudlab.us:50051", 
-"c220g2-011303.wisc.cloudlab.us:50052", "c220g2-010631.wisc.cloudlab.us:50053",
-"c220g2-010630.wisc.cloudlab.us:50054"]
+edgeServers = ["c220g2-011331.wisc.cloudlab.us:50051", 
+"c220g2-010631.wisc.cloudlab.us:50052", "c220g2-010630.wisc.cloudlab.us:50053",
+"c220g2-011330.wisc.cloudlab.us:50054"]
 
 totalTime = 0
 
-def runClient(clientNumber, totalClients):
+def runClient(clientNumber, totalClients, seeder):
+	random.seed(seeder)
 	lowerRange = (clientNumber-1)*totalKeyRange + 1
 	UpperRange = lowerRange + totalKeyRange - 1
 	hotspotUpperRange = lowerRange + hotspotKeyRange - 1
@@ -93,7 +94,7 @@ def runClient(clientNumber, totalClients):
 		
 
 		
-	fileName = 'read_' + clientID + "_of_" + totalClients + '.txt'
+	fileName = "LRU2/" + 'Read_' + clientID + "_of_" + totalClients + '.txt'
 	with open(fileName, 'w') as file1:
 		file1.truncate()
 		for t in timeList:
@@ -102,10 +103,10 @@ def runClient(clientNumber, totalClients):
 
 
 if __name__ == '__main__':
-	if(len(sys.argv) != 3):
-		print("Usage: python3 clientEdgeServer_read <clientNumber> <totalClients>")
+	if(len(sys.argv) != 4):
+		print("Usage: python3 clientEdgeServer_read <clientNumber> <totalClients> <seed>")
 		exit(1)
-	runClient(int(sys.argv[1]), sys.argv[2])
+	runClient(int(sys.argv[1]), sys.argv[2], int(sys.argv[3]))
 	print("timeTaken:", totalTime)
 	print("AverageTime:", totalTime/totalRequests)
 	print("success")

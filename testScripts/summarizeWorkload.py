@@ -5,9 +5,9 @@ def summarizeWorkload(seedNumber, clientNo):
 	random.seed(int(seedNumber))
 
 	# edit this workload here if required
-	totalKeyRange = 50000
-	hotspotKeyRange = 5000
-	totalRequests = 25000
+	totalKeyRange = 80000
+	hotspotKeyRange = 8000
+	totalRequests = 30000
 	clientNumber = int(clientNo)
 	lowerRange = (clientNumber-1)*totalKeyRange + 1
 	UpperRange = lowerRange + totalKeyRange - 1
@@ -66,6 +66,7 @@ def summarizeWorkload(seedNumber, clientNo):
 				uniqueReadsOnThisEdgeServer += 1
 				cache.append(keyID)
 				if len(cache) == 10001:
+					#print("cache full")
 					cache = cache[-10000:]
 			else:
 				cacheHits += 1
